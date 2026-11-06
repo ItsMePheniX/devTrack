@@ -16,7 +16,7 @@ type Config struct {
 
 func Load() (*Config, error) { //public fn
 
-	if err := godotenv.Load("../.env"); err != nil {
+	if err := godotenv.Load("../../../.env"); err != nil {
 		return nil, fmt.Errorf("Note: .env file not found, reading from system environment variables")
 	}
 	port, err := getRequiredEnv("PORT")
