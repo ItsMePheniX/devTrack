@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"devtrack/internal/auth"
 	"devtrack/internal/config"
 	"devtrack/internal/database"
 	"devtrack/internal/router"
@@ -18,8 +19,16 @@ func main() {
 	dbPool, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Config errors: %v", err)
-		defer dbPool.Close()
 	}
+	defer dbPool.Close()
+
+	//initilize the cedar RABC Authorizer
+	authorizer, err := auth.NewAuthorizer()
+	if err != nil {
+		log.Fatalf("Cedar initialization failed %v", err)
+	}
+	_ = authorizer //will inject into middleware soon
+
 	//ini all the routes
 	r := router.Setup(cfg) //pass creds to initialize the config
 
