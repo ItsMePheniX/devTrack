@@ -1,0 +1,25 @@
+info:
+  name: Register New User
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:8000/api/v1/auth/register
+  body:
+    type: json
+    data: |-
+      {
+        "email":"aadityaa5000@gmail.com",
+        "password":"Mdar@2012",
+        "full_name":"Aditya-Dev"
+
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
