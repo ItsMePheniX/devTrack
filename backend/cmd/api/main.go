@@ -18,9 +18,10 @@ func main() {
 	//connect to DB
 	dbPool, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Config errors: %v", err)
+		log.Fatalf("Database connection failed: %v", err)
 	}
 	defer dbPool.Close()
+	queries := database.New(dbPool)
 
 	//initilize the cedar RABC Authorizer
 	authorizer, err := auth.NewAuthorizer()
@@ -30,7 +31,7 @@ func main() {
 	_ = authorizer //will inject into middleware soon
 
 	//ini all the routes
-	r := router.Setup(cfg) //pass creds to initialize the config
+	r := router.Setup(cfg, queries) //pass creds to initialize the config
 
 	//start the server
 	addr := ":" + cfg.Port
