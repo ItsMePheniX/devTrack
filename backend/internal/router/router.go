@@ -2,12 +2,13 @@ package router
 
 import (
 	"devtrack/internal/config"
+	"devtrack/internal/database"
 	"devtrack/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Setup(cfg *config.Config) *gin.Engine {
+func Setup(cfg *config.Config, queries *database.Queries) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -15,9 +16,15 @@ func Setup(cfg *config.Config) *gin.Engine {
 
 	r.GET("/health", handlers.HealthCheck)
 
-	v1 := r.Group("api/v1")
+	authHandler := handlers.NewAuthHandler(queries, cfg)
+
+	v1 := r.Group("/api/v1")
 	{
-		_ = v1 //place holder until i add routes
+		authRoutes := v1.Group("/auth")
+		{
+			authRoutes.POST("/register", authHandler.Register)
+			authRoutes.POST("/login", authHandler.Login)
+		}
 	}
 	return r
 }
