@@ -22,7 +22,7 @@ func NewAuthorizer() (*Authorizer, error) {
 		return nil, fmt.Errorf("failed to complie cedar policies %w", err)
 	}
 
-	log.Println("Successfully complied Cedar RBAC policies!")
+	log.Println("Successfully compiled Cedar RBAC policies!")
 	return &Authorizer{policySet: policySet}, nil
 
 }
