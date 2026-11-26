@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -16,8 +17,8 @@ type Config struct {
 
 func Load() (*Config, error) { //public fn
 
-	if err := godotenv.Load("../../../.env"); err != nil {
-		return nil, fmt.Errorf("Note: .env file not found, reading from system environment variables")
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Note: .env file not found, reading from system environment variable")
 	}
 	port, err := getRequiredEnv("PORT")
 	if err != nil {
@@ -45,7 +46,7 @@ func Load() (*Config, error) { //public fn
 func getRequiredEnv(key string) (string, error) {
 	val, exists := os.LookupEnv(key)
 	if !exists || val == "" {
-		return "", fmt.Errorf("missing env varialbes: %s (check ur .env file)", key)
+		return "", fmt.Errorf("missing env variables: %s (check ur .env file)", key)
 	}
 	return val, nil
 }
