@@ -31,7 +31,10 @@ func main() {
 	_ = authorizer //will inject into middleware soon
 
 	//ini all the routes
-	r := router.Setup(cfg, queries) //pass creds to initialize the config
+	r, err := router.Setup(cfg, queries) //pass creds to initialize the config
+	if err != nil {
+		log.Fatalf("router setup: %v", err)
+	}
 
 	//start the server
 	addr := ":" + cfg.Port
