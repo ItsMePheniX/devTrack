@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"strings"
 
 	"devtrack/internal/auth"
 	"devtrack/internal/config"
@@ -10,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func fmtUUID(b [16]byte) string {
@@ -17,20 +21,28 @@ func fmtUUID(b [16]byte) string {
 }
 
 type AuthHandler struct {
-	queries *database.Queries
-	cfg     *config.Config
+	queries   *database.Queries
+	cfg       *config.Config
+	dummyHash string
 }
 
-func NewAuthHandler(queries *database.Queries, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{
-		queries: queries,
-		cfg:     cfg,
+func NewAuthHandler(queries *database.Queries, cfg *config.Config) (*AuthHandler, error) {
+	dummy, err := auth.HashPassword("password12ed12d")
+	if err != nil {
+		return nil, fmt.Errorf("Hash dummy password: %w", err)
 	}
+	return &AuthHandler{
+		queries:   queries,
+		cfg:       cfg,
+		dummyHash: dummy,
+	}, nil
 }
+
+const pgUniqueViolation = "23505"
 
 type RegistrationRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Password string `json:"password" binding:"required,min=8,max=72"`
 	FullName string `json:"full_name" binding:"required"`
 }
 
@@ -38,9 +50,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegistrationRequest
 	//1. validate request body
 	if err := c.ShouldBindJSON(&req); err != nil {
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	req.Email = strings.TrimSpace(req.Email)
+	req.Email = strings.ToLower(req.Email)
+
 	//2. Hash password with bcrypt
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
@@ -54,8 +71,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		FullName:     req.FullName,
 		Role:         "dev",
 	})
+
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered or database error"})
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
+			return
+		}
+		log.Printf("create user failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 	//4. Convert UUID bytes to string and generate JWT
@@ -73,7 +97,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 type LoginRequest struct { //login payload defination
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required,max=72"`
 }
 
 // Login handles POST /api/v1/auth/login
@@ -84,12 +108,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	req.Email = strings.TrimSpace(req.Email)
+	req.Email = strings.ToLower(req.Email)
+
 	//2. look up the user by mail via sqlc
 	user, err := h.queries.GetUserByEmail(c.Request.Context(), req.Email)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
+		if errors.Is(err, pgx.ErrNoRows) { //errors.Is-->takes both aurguments as errors; Does this error contain the error i'm looking for
+			auth.CheckPassword(req.Password, h.dummyHash)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return
+
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
@@ -114,7 +144,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"id":        userIDStr,
 			"email":     user.Email,
 			"full_name": user.FullName,
-			"rolemail":  user.Role,
+			"role":      user.Role,
 		},
 	})
 
